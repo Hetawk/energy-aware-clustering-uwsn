@@ -30,6 +30,8 @@ pip install numpy matplotlib scikit-fuzzy pulp networkx
     ├── state/          # Sensor states
     └── evaluation/      # Performance metrics
 
+## Run All Scripts using the terminal using `./run_all.sh` or `bash run_all.sh`
+
 ## Quick Test (10-20 sensors)
 ### Run with clustering enabled
 ```bash
