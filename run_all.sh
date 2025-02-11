@@ -1,19 +1,16 @@
 #!/bin/bash
 
-# Run with clustering enabled
-python main.py --config config.json --set default --clustering
+# Config: use "default", "test0", "test1", etc.
+CONFIG_SET="test01"
 
-# Run without clustering for comparison
-python main.py --config config.json --set default --no-clustering
+# Clean up any existing results for this config
+rm -rf "results/$CONFIG_SET"
 
-# Validate implementation
-python validate_implementation.py
+# Run simulation and validation
+python main.py --config config.json --set $CONFIG_SET --clustering --mode both
 
-# View sleep scheduling results
-cat results/network/srp_output.txt
-
-# Check energy consumption with clustering
-cat results/evaluation/metrics/with_clustering_energy_consumption.csv
-
-# Check energy consumption without clustering
-cat results/evaluation/metrics/without_clustering_energy_consumption.csv
+# View results (all under config directory)
+echo "Checking results in results/$CONFIG_SET/..."
+cat "results/$CONFIG_SET/network/srp_output.txt"
+cat "results/$CONFIG_SET/evaluation/metrics/with_clustering_energy_consumption.csv"
+cat "results/$CONFIG_SET/evaluation/metrics/without_clustering_energy_consumption.csv"

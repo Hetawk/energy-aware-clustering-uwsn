@@ -5,18 +5,21 @@ from optimization import Optimization
 from simulation import Simulation
 from energy_calculation import EnergyCalculation
 
+
 class NetworkEvaluation:
-    def __init__(self, config_set):
+    def __init__(self, config_set, result_dir):
         self.radius = config_set["radius"]
         self.sensor_counts = config_set["sensor_counts"]
         self.rounds = config_set["rounds"]
         self.width = config_set["width"]
         self.relay_constraint = config_set["relay_constraint"]
-        self.results_dir = "results/evaluation"  # Changed from "evaluation_results" to "results/evaluation"
+
+        # Use provided result_dir and append evaluation subfolder
+        self.results_dir = os.path.join(result_dir, "evaluation")
         os.makedirs(self.results_dir, exist_ok=True)
-        os.makedirs(f"{self.results_dir}/figures", exist_ok=True)
-        os.makedirs(f"{self.results_dir}/metrics", exist_ok=True)
-        
+        os.makedirs(os.path.join(self.results_dir, "figures"), exist_ok=True)
+        os.makedirs(os.path.join(self.results_dir, "metrics"), exist_ok=True)
+
     def run_comparative_analysis(self):
         """Run analysis with and without clustering"""
         metrics = {
@@ -34,49 +37,58 @@ class NetworkEvaluation:
             'cluster_balance': [],
             'avg_load_factor': []
         }
-        
+
         for count in self.sensor_counts:
             try:
-                opt = Optimization(self.radius, count, self.width, self.relay_constraint, clustering)
+                opt = Optimization(self.radius, count, self.width,
+                                   self.relay_constraint, clustering)
                 energy_calc = EnergyCalculation(opt.sensorList, opt.relayList)
                 nw_e_s = energy_calc.init_energy_s()
                 nw_e_r = energy_calc.init_energy_r()
-                
-                sim = Simulation(opt.sensorList, opt.relayList, 
-                               opt.connection_s_r(), opt.connection_r_r(),
-                               opt.membership_values, opt.cluster_heads, self.rounds)
-                
+
+                # Pass the result_dir when creating Simulation instance
+                sim = Simulation(opt.sensorList, opt.relayList,
+                                 opt.connection_s_r(), opt.connection_r_r(),
+                                 opt.membership_values, opt.cluster_heads,
+                                 self.rounds, result_dir=os.path.dirname(self.results_dir))
+
                 state_s = sim.state_matrix()
-                final_energy_s, init_energy_s = sim.simu_network(nw_e_s, nw_e_r, state_s)
-                
+                final_energy_s, init_energy_s = sim.simu_network(
+                    nw_e_s, nw_e_r, state_s)
+
                 # Calculate metrics using both initial and final energy
                 lifetime = self._calculate_network_lifetime(final_energy_s)
-                energy_consumed = self._calculate_energy_consumption(init_energy_s, final_energy_s)
+                energy_consumed = self._calculate_energy_consumption(
+                    init_energy_s, final_energy_s)
                 alive_ratio = self._calculate_alive_sensors(final_energy_s)
-                load_factors = energy_calc.calculate_load_balance(final_energy_s)
-                
+                load_factors = energy_calc.calculate_load_balance(
+                    final_energy_s)
+
                 # Store results
                 results['network_lifetime'].append(float(lifetime))
                 results['energy_consumption'].append(float(energy_consumed))
                 results['alive_sensors'].append(float(alive_ratio))
                 results['avg_load_factor'].append(float(np.mean(load_factors)))
-                
+
                 if clustering:
-                    cluster_balance = self._calculate_cluster_balance(opt.cluster_labels, final_energy_s)
-                    results['cluster_balance'].append(float(np.mean(cluster_balance)))
+                    cluster_balance = self._calculate_cluster_balance(
+                        opt.cluster_labels, final_energy_s)
+                    results['cluster_balance'].append(
+                        float(np.mean(cluster_balance)))
                 else:
                     results['cluster_balance'].append(0.0)
-                
+
             except Exception as e:
-                print(f"Warning: Error in simulation for {count} sensors: {str(e)}")
+                print(
+                    f"Warning: Error in simulation for {count} sensors: {str(e)}")
                 # Add default values to maintain array dimensions
                 for key in results:
                     results[key].append(0.0)
-        
+
         # Ensure all metrics are numpy arrays with float dtype
         for key in results:
             results[key] = np.array(results[key], dtype=float)
-        
+
         return results
 
     def _calculate_network_lifetime(self, final_energy):
@@ -97,25 +109,27 @@ class NetworkEvaluation:
         """Calculate energy balance among clusters"""
         unique_clusters = np.unique(cluster_labels)
         cluster_energies = []
-        
+
         for cluster in unique_clusters:
             cluster_nodes = np.where(cluster_labels == cluster)[0]
-            cluster_energy = np.mean([np.sum(final_energy[i]) for i in cluster_nodes])
+            cluster_energy = np.mean([np.sum(final_energy[i])
+                                     for i in cluster_nodes])
             cluster_energies.append(cluster_energy)
-            
-        return np.array(cluster_energies)  # Return numpy array instead of module
+
+        # Return numpy array instead of module
+        return np.array(cluster_energies)
 
     def _generate_plots(self, metrics):
         """Generate comprehensive visualization plots"""
         # Create figures directory
         os.makedirs(f"{self.results_dir}/figures", exist_ok=True)
-        
+
         # 1. Network Lifetime Comparison
         plt.figure(figsize=(10, 6))
-        plt.plot(self.sensor_counts, metrics['with_clustering']['network_lifetime'], 
-                'bo-', label='With Clustering')
-        plt.plot(self.sensor_counts, metrics['without_clustering']['network_lifetime'], 
-                'ro-', label='Without Clustering')
+        plt.plot(self.sensor_counts, metrics['with_clustering']['network_lifetime'],
+                 'bo-', label='With Clustering')
+        plt.plot(self.sensor_counts, metrics['without_clustering']['network_lifetime'],
+                 'ro-', label='Without Clustering')
         plt.title('Network Lifetime Comparison')
         plt.xlabel('Number of Sensors')
         plt.ylabel('Network Lifetime (rounds)')
@@ -126,10 +140,10 @@ class NetworkEvaluation:
 
         # 2. Energy Consumption
         plt.figure(figsize=(10, 6))
-        plt.plot(self.sensor_counts, metrics['with_clustering']['energy_consumption'], 
-                'g^-', label='With Clustering')
-        plt.plot(self.sensor_counts, metrics['without_clustering']['energy_consumption'], 
-                'm^-', label='Without Clustering')
+        plt.plot(self.sensor_counts, metrics['with_clustering']['energy_consumption'],
+                 'g^-', label='With Clustering')
+        plt.plot(self.sensor_counts, metrics['without_clustering']['energy_consumption'],
+                 'm^-', label='Without Clustering')
         plt.title('Energy Consumption Comparison')
         plt.xlabel('Number of Sensors')
         plt.ylabel('Total Energy Consumed')
@@ -140,10 +154,10 @@ class NetworkEvaluation:
 
         # 3. Load Balance Analysis
         plt.figure(figsize=(10, 6))
-        plt.plot(self.sensor_counts, metrics['with_clustering']['avg_load_factor'], 
-                'ks-', label='With Clustering')
-        plt.plot(self.sensor_counts, metrics['without_clustering']['avg_load_factor'], 
-                'ys-', label='Without Clustering')
+        plt.plot(self.sensor_counts, metrics['with_clustering']['avg_load_factor'],
+                 'ks-', label='With Clustering')
+        plt.plot(self.sensor_counts, metrics['without_clustering']['avg_load_factor'],
+                 'ys-', label='Without Clustering')
         plt.title('Load Balance Analysis')
         plt.xlabel('Number of Sensors')
         plt.ylabel('Average Load Factor')
@@ -156,10 +170,11 @@ class NetworkEvaluation:
         self._save_metrics(metrics)
 
     def _save_metrics(self, metrics):
-        """Save all metrics to CSV files with proper data handling"""
+        """Save metrics to config-specific directory"""
         for method in ['with_clustering', 'without_clustering']:
             for metric_name, values in metrics[method].items():
-                filename = f"{self.results_dir}/metrics/{method}_{metric_name}.csv"
+                filename = os.path.join(self.results_dir, "metrics",
+                                        f"{method}_{metric_name}.csv")
                 # Convert values to proper format before saving
                 try:
                     # Convert to numpy array if not already
@@ -168,8 +183,9 @@ class NetworkEvaluation:
                     save_data = np.column_stack((self.sensor_counts, data))
                     header = f"sensor_count,{metric_name}"
                     fmt = '%d,%.6f'  # Format specifier for integer,float pairs
-                    np.savetxt(filename, save_data, delimiter=',', 
-                             header=header, comments='', fmt=fmt)
+                    np.savetxt(filename, save_data, delimiter=',',
+                               header=header, comments='', fmt=fmt)
                 except Exception as e:
-                    print(f"Warning: Could not save {metric_name} due to {str(e)}")
+                    print(
+                        f"Warning: Could not save {metric_name} due to {str(e)}")
                     continue

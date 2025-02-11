@@ -2,31 +2,155 @@
   "configurations": {
     "default": {
       "radius": 30,
-      "sensor_counts": [100, 200, 300, 400, 500],
+      "sensor_counts": [
+        100,
+        200,
+        300,
+        400,
+        500
+      ],
       "rounds": 10,
       "width": 50.0,
       "relay_constraint": 50
     },
-    "test0": {
+    "test00": {
       "radius": 10,
-      "sensor_counts": [10, 15, 20],  
-      "rounds": 5, 
+      "sensor_counts": [
+        10,
+        15,
+        20
+      ],
+      "rounds": 5,
       "width": 20.0,
       "relay_constraint": 10
     },
-    "test1": {
+    "test01": {
       "radius": 20,
-      "sensor_counts": [50, 100, 150],
+      "sensor_counts": [
+        50,
+        100,
+        150
+      ],
       "rounds": 5,
       "width": 30.0,
       "relay_constraint": 30
     },
+    "test0": {
+      "radius": 20,
+      "sensor_counts": [
+        50,
+        100,
+        150,
+        200,
+        250
+      ],
+      "rounds": 50,
+      "width": 50.0,
+      "relay_constraint": 50
+    },
+    "test1": {
+      "radius": 30,
+      "sensor_counts": [
+        50,
+        100,
+        150,
+        200,
+        250
+      ],
+      "rounds": 50,
+      "width": 50.0,
+      "relay_constraint": 50
+    },
     "test2": {
       "radius": 40,
-      "sensor_counts": [200, 300, 400],
-      "rounds": 15,
-      "width": 70.0,
-      "relay_constraint": 70
+      "sensor_counts": [
+        50,
+        100,
+        150,
+        200,
+        250
+      ],
+      "rounds": 50,
+      "width": 50.0,
+      "relay_constraint": 50
+    },
+    "test3": {
+      "radius": 20,
+      "sensor_counts": [
+        50,
+        100,
+        150,
+        200,
+        250
+      ],
+      "rounds": 100,
+      "width": 100.0,
+      "relay_constraint": 100
+    },
+    "test4": {
+      "radius": 30,
+      "sensor_counts": [
+        50,
+        100,
+        150,
+        200,
+        250
+      ],
+      "rounds": 100,
+      "width": 100.0,
+      "relay_constraint": 100
+    },
+    "test5": {
+      "radius": 40,
+      "sensor_counts": [
+        50,
+        100,
+        150,
+        200,
+        250
+      ],
+      "rounds": 100,
+      "width": 100.0,
+      "relay_constraint": 100
+    },
+    "test6": {
+      "radius": 20,
+      "sensor_counts": [
+        50,
+        100,
+        150,
+        200,
+        250
+      ],
+      "rounds": 150,
+      "width": 150.0,
+      "relay_constraint": 150
+    },
+    "test7": {
+      "radius": 30,
+      "sensor_counts": [
+        50,
+        100,
+        150,
+        200,
+        250
+      ],
+      "rounds": 150,
+      "width": 150.0,
+      "relay_constraint": 150
+    },
+    "test8": {
+      "radius": 40,
+      "sensor_counts": [
+        50,
+        100,
+        150,
+        200,
+        250
+      ],
+      "rounds": 150,
+      "width": 150.0,
+      "relay_constraint": 150
     }
   }
 }

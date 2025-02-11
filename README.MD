@@ -17,47 +17,29 @@ An implementation of an Energy-Aware Clustering and Sleep Scheduling Routing Pro
 pip install numpy matplotlib scikit-fuzzy pulp networkx
 ```
 
-## Project Structure
-.
-├── config.json            # Configuration settings
-├── main.py               # Main execution script
-├── optimization.py       # Clustering and optimization
-├── simulation.py         # Network simulation
-├── energy_calculation.py # Energy calculations
-└── results/             # Simulation outputs
-    ├── network/         # Network statistics
-    ├── energy/          # Energy consumption data
-    ├── state/          # Sensor states
-    └── evaluation/      # Performance metrics
-
-## Run All Scripts using the terminal using `./run_all.sh` or `bash run_all.sh`
-
 ## Quick Test (10-20 sensors)
-### Run with clustering enabled
+### Run with clustering enabled and no clustering enable and after run validate method using the shell script
 ```bash
-python main.py --config config.json --set test0 --clustering
+./run_all.sh
 ```
-
-### Run without clustering for comparison
-```bash
-python main.py --config config.json --set test0 --no-clustering
+### Shell script -> The following script (`run_all.sh`) automates the simulation process:
 ```
+#!/bin/bash
 
-### Validate implementation
-```bash
-python validate_implementation.py
-```
+# Config: use "default", "test0", "test1", etc.
+CONFIG_SET="test01"
 
-## Check Results
-### View sleep scheduling results
-```bash
-cat results/network/srp_output.txt
-```
+# Clean up any existing results for this config
+rm -rf "results/$CONFIG_SET"
 
-### Check energy consumption
-```bash
-cat results/evaluation/metrics/with_clustering_energy_consumption.csv
-cat results/evaluation/metrics/without_clustering_energy_consumption.csv
+# Run simulation and validation
+python main.py --config config.json --set $CONFIG_SET --clustering --mode both
+
+# View results (all under config directory)
+echo "Checking results in results/$CONFIG_SET/..."
+cat "results/$CONFIG_SET/network/srp_output.txt"
+cat "results/$CONFIG_SET/evaluation/metrics/with_clustering_energy_consumption.csv"
+cat "results/$CONFIG_SET/evaluation/metrics/without_clustering_energy_consumption.csv"
 ```
 
 ## Configuration Options
