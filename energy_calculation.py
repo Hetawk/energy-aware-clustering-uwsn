@@ -2,6 +2,7 @@
 import math
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 
 class EnergyCalculation:
@@ -110,23 +111,13 @@ class EnergyCalculation:
         return load_factors
 
     def _get_sensor_neighbors(self, sensor_idx, radius=None):
-        """Find neighboring sensors within radius with proper coordinate handling"""
-        if radius is None:
-            radius = 10.0  # Default radius
-
-        neighbors = []
-        sensor = self.sensorList[sensor_idx]
-        sensor_pos = sensor[:2] if isinstance(
-            sensor, (list, np.ndarray)) else sensor
-
-        for i, other_sensor in enumerate(self.sensorList):
-            if i != sensor_idx:
-                other_pos = other_sensor[:2] if isinstance(
-                    other_sensor, (list, np.ndarray)) else other_sensor
-                if self.distance(sensor_pos, other_pos) <= radius:
-                    neighbors.append(i)
-
-        return neighbors
+        """Use KD-tree for efficient nearest neighbor search"""
+        if not hasattr(self, '_kdtree'):
+            self._kdtree = cKDTree(self.sensorList)
+        
+        sensor_pos = self.sensorList[sensor_idx]
+        neighbors = self._kdtree.query_ball_point(sensor_pos, radius)
+        return [i for i in neighbors if i != sensor_idx]
 
     def adjust_energy_distribution(self, nw_e_s, nw_e_r):
         """Adjust energy distribution for better load balancing"""

@@ -8,6 +8,8 @@ from optimization import Optimization
 from simulation import Simulation
 from energy_calculation import EnergyCalculation
 from validate_implementation import validate_implementation
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor
 
 
 def save_to_csv(filename, headers, data):
@@ -17,6 +19,35 @@ def save_to_csv(filename, headers, data):
         writer = csv.writer(file)
         writer.writerow(headers)
         writer.writerows(data)
+
+
+def run_single_simulation(radius, count, rounds, width, relay_constraint, clustering, result_dir):
+    optimization = Optimization(
+        radius, count, width, relay_constraint, clustering=clustering)
+    Problem, time_taken = optimization.solve_problem()
+
+    # Initialize energy calculation
+    energy_calculation = EnergyCalculation(
+        optimization.sensorList, optimization.relayList)
+    nw_e_s = energy_calculation.init_energy_s()
+    nw_e_r = energy_calculation.init_energy_r()
+
+    # Always pass the config-specific result_dir
+    sim_instance = Simulation(optimization.sensorList, optimization.relayList,
+                              optimization.connection_s_r(), optimization.connection_r_r(),
+                              optimization.membership_values, optimization.cluster_heads,
+                              rounds, result_dir=result_dir)
+
+    state_s = sim_instance.state_matrix()
+    final_energy_s, init_energy_s = sim_instance.simu_network(
+        nw_e_s, nw_e_r, state_s)
+
+    consumed = sum(sum(row) for row in init_energy_s) - \
+        sum(sum(row) for row in final_energy_s)
+    relays = len(optimization.relayList)
+    energy = consumed
+
+    return relays, energy, time_taken
 
 
 def run_simulations(radius, sensor_counts, rounds, width, relay_constraint, clustering, result_dir):
@@ -35,32 +66,18 @@ def run_simulations(radius, sensor_counts, rounds, width, relay_constraint, clus
     os.makedirs(os.path.join(
         result_dir, "evaluation", "figures"), exist_ok=True)
 
-    for count in sensor_counts:
-        optimization = Optimization(
-            radius, count, width, relay_constraint, clustering=clustering)
-        Problem, time_taken = optimization.solve_problem()
-        times.append(time_taken)
+    # Parallel processing for multiple sensor counts
+    with ProcessPoolExecutor(max_workers=mp.cpu_count()) as executor:
+        futures = [
+            executor.submit(
+                run_single_simulation,
+                radius, count, rounds, width,
+                relay_constraint, clustering, result_dir
+            ) for count in sensor_counts
+        ]
+        results = [f.result() for f in futures]
 
-        # Initialize energy calculation
-        energy_calculation = EnergyCalculation(
-            optimization.sensorList, optimization.relayList)
-        nw_e_s = energy_calculation.init_energy_s()
-        nw_e_r = energy_calculation.init_energy_r()
-
-        # Always pass the config-specific result_dir
-        sim_instance = Simulation(optimization.sensorList, optimization.relayList,
-                                  optimization.connection_s_r(), optimization.connection_r_r(),
-                                  optimization.membership_values, optimization.cluster_heads,
-                                  rounds, result_dir=result_dir)
-
-        state_s = sim_instance.state_matrix()
-        final_energy_s, init_energy_s = sim_instance.simu_network(
-            nw_e_s, nw_e_r, state_s)
-
-        consumed = sum(sum(row) for row in init_energy_s) - \
-            sum(sum(row) for row in final_energy_s)
-        relays.append(len(optimization.relayList))
-        energies.append(consumed)
+    relays, energies, times = zip(*results)
 
     # Save all results under config directory
     save_to_csv(os.path.join(result_dir, "network", "relays.csv"),

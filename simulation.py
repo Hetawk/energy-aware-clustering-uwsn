@@ -27,7 +27,10 @@ class Simulation:
 
         self.rounds = rounds
         self.init_energy = 0.0005 * len(sensorList) * len(relayList)
-        self.nw_e_s = None
+        self.nw_e_s = np.zeros(
+            (len(sensorList), len(relayList)), dtype=np.float32)
+        self.state_matrix_arr = np.zeros_like(
+            self.nw_e_s, dtype=np.int8)  # Renamed from state_matrix
         self.result_dir = result_dir  # Store the config-specific directory
 
     def state_matrix(self):

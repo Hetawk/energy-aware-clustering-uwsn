@@ -8,6 +8,23 @@ from pulp import LpInteger, LpProblem, LpVariable, LpMinimize, PULP_CBC_CMD, lpS
 from networkx.algorithms.approximation.steinertree import steiner_tree
 import skfuzzy as fuzz
 from energy_calculation import EnergyCalculation  # Add this import
+import numba
+from numba import jit
+
+
+@jit(nopython=True)
+def calculate_distances(sensors, relays):
+    """Vectorized distance calculation"""
+    sensors = np.array(sensors)
+    relays = np.array(relays)
+    distances = np.zeros((len(sensors), len(relays)))
+
+    for i in range(len(sensors)):
+        distances[i] = np.sqrt(
+            (sensors[i, 0] - relays[:, 0])**2 +
+            (sensors[i, 1] - relays[:, 1])**2
+        )
+    return distances
 
 
 class Optimization:
@@ -46,18 +63,9 @@ class Optimization:
         return math.sqrt((a ** 2) + (b ** 2))
 
     def connection_s_r(self):
-        Neighbor_Sensor_Relay = [
-            [0 for i in range(len(self.relayList))] for j in range(len(self.sensorList))
-        ]
-        for i in range(len(self.sensorList)):
-            for j in range(len(self.relayList)):
-                dist = self.distance(abs(self.sensorList[i][0] - self.relayList[j][0]),
-                                     abs(self.sensorList[i][1] - self.relayList[j][1]))
-                if dist <= self.R:
-                    Neighbor_Sensor_Relay[i][j] = 1
-                else:
-                    Neighbor_Sensor_Relay[i][j] = 0
-        return Neighbor_Sensor_Relay
+        # Replace loop-based distance calculation with vectorized version
+        distances = calculate_distances(self.sensorList, self.relayList)
+        return (distances <= self.R).astype(int)
 
     def connection_r_r(self):
         Neighbor_Relay_Relay = [
