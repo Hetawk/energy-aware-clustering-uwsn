@@ -176,21 +176,31 @@ class Simulation:
         self.nw_e_s = np.copy(nw_e_s)
         network_path = os.path.join(self.result_dir, "network")
         os.makedirs(network_path, exist_ok=True)
+        # Open two output files: one for overall energy usage and one for sleep scheduling.
         try:
-            with open(os.path.join(network_path, "percentage_network.txt"), "w") as network_file:
+            with open(os.path.join(network_path, "percentage_network.txt"), "w") as network_file, \
+                    open(os.path.join(network_path, "srp_output.txt"), "w") as srp_file:
                 network_file.write(
                     f"sensors: {len(self.sensorList)}\nRelays: {len(self.relayList)}\n\n")
                 total_energy = 0
-                # Example simulation logic: for each round, reduce energy on active links by a fixed consumption.
-                consumption = 0.01  # Example consumption per active connection
+                # Example improved simulation logic over rounds:
+                # For each round, compute the current state (active connections),
+                # call the SRP toggler to adjust sensor activations, then deduct energy.
+                consumption = 0.05  # Adjust consumption per active connection as needed
                 for rnd in range(self.rounds):
-                    # For each sensor-relay pair with a connection, subtract energy consumption.
+                    # Get current status and schedule sensors using SRP toggler
+                    state_s = self.state_matrix()
+                    s_counter = self.init_s_counter(state_s)
+                    PH_list = self.init_sensor_ph_value()
+                    self.srp_toggler(state_s, s_counter,
+                                     PH_list, rnd, srp_file)
+                    # Apply energy consumption on each active link
                     for i in range(len(self.sensorList)):
                         for j in range(len(self.relayList)):
                             if self.Fin_Conn_S_R[i][j] == 1 and self.nw_e_s[i][j] > 0:
+                                # Optionally, consumption could incorporate sensor-receiver distance
                                 self.nw_e_s[i][j] = max(
                                     0, self.nw_e_s[i][j] - consumption)
-                    # Optionally, log round info (you can also update a per-round energy consumption record)
                     total_energy = np.sum(
                         init_energy_copy) - np.sum(self.nw_e_s)
                     network_file.write(
