@@ -5,12 +5,14 @@ import skfuzzy as fuzz
 from networkx.algorithms.approximation.steinertree import steiner_tree
 from pulp import LpInteger, LpProblem, LpVariable, LpMinimize, PULP_CBC_CMD, lpSum
 import networkx as nx
+import logging
 import numpy as np
 import time
 import math
 import random
 import warnings
 from numba import NumbaPendingDeprecationWarning
+import multiprocessing as mp  # Added for parallel solver threads
 warnings.filterwarnings("ignore", category=NumbaPendingDeprecationWarning)
 
 # optimization.py
@@ -218,7 +220,7 @@ class Optimization:
             return []
 
     def solve_problem(self):
-        """Solve the optimization problem with timing"""
+        """Solve the optimization problem with timing and parallel processing"""
         start_time = time.time()
         try:
             Problem = LpProblem("The Energy Problem", LpMinimize)
@@ -307,10 +309,14 @@ class Optimization:
             Problem += lpSum(Bool_Var) <= self.relayConstraint
 
             t1 = time.perf_counter()
-            Problem.solve(PULP_CBC_CMD(gapRel=0.0000000000001))
+            logging.info(
+                f"[Optimization] Starting solver with gapRel=1e-13 and threads={mp.cpu_count()}")
+            Problem.solve(PULP_CBC_CMD(gapRel=1e-13, threads=mp.cpu_count()))
             t2 = time.perf_counter()
-
-            return Problem, t2 - t1
+            optimization_duration = t2 - t1   # Calculate solver duration
+            logging.info(
+                f"[Optimization] Solved in {optimization_duration:.2f}s")
+            return Problem, optimization_duration
         except Exception as e:
             print(f"[❌ Error] Optimization failed: {str(e)}")
             return None, time.time() - start_time

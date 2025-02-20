@@ -6,6 +6,7 @@ import signal
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor
 import logging
+import time
 
 import numpy as np
 
@@ -175,6 +176,7 @@ class Simulation:
 
     def simu_network(self, nw_e_s, nw_e_r, state_s):
         """Run network simulation with proper directory handling"""
+        simulation_start_time = time.time()  # Added simulation start time
         # Make deep copies of initial energy matrices
         init_energy_copy = np.copy(nw_e_s)
         self.nw_e_s = np.copy(nw_e_s)
@@ -253,6 +255,10 @@ class Simulation:
                 self.srp_toggler(state_s, s_counter,
                                  PH_list_sensors, round, srpfile)
                 total_energy += consumed_round_energy
+            # Calculate simulation duration
+            simulation_duration = time.time() - simulation_start_time
+            network_file.write("Simulation Duration (s): " +
+                               str(simulation_duration) + "\n")  # Log duration
             network_file.write("total rounds: " + str(round+1) + "\n")
             network_file.write("total Energy used: " +
                                str(total_energy) + "\n")
@@ -269,7 +275,7 @@ class Simulation:
                              [[i, sum(row)] for i, row in enumerate(state_s)])
 
             logging.info(
-                f"Simulation completed successfully for {len(self.sensorList)} sensors.")
+                f"Simulation completed successfully for {len(self.sensorList)} sensors in {simulation_duration:.2f}s.")
             return nw_e_s, init_energy_copy  # <-- Added return tuple here
 
         except Exception as e:
