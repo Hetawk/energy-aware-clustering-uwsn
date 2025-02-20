@@ -3,30 +3,49 @@ import math
 
 import numpy as np
 from scipy.spatial import cKDTree
+from utils.gpu_accelerator import GPUAccelerator
+from utils.parallel_processor import ParallelProcessor
 
 
 class EnergyCalculation:
     def __init__(self, sensorList, relayList):
-        # Convert sensor and relay lists to proper format
-        self.sensorList = [(float(s[0]), float(s[1])) if isinstance(s, (list, tuple, np.ndarray))
-                           else s for s in sensorList]
-        self.relayList = [(float(r[0]), float(r[1])) for r in relayList]
+        self.sensorList = np.array(sensorList)
+        self.relayList = np.array(relayList)
 
     def energy_s(self):
+        """Optimized sensor energy calculation"""
         bandwidth = 100.0
-        Energy_Sensor = [
-            [[0] for i in range(len(self.relayList))] for j in range(len(self.sensorList))]
-        E_radio_S = 50.0 * (10 ** (-9))
-        Transmit_amplifier = 100.0 * (10 ** (-12))
-        for i in range(len(self.sensorList)):
-            for j in range(len(self.relayList)):
-                dist = self.distance(abs(self.sensorList[i][0] - self.relayList[j][0]), abs(
-                    self.sensorList[i][1] - self.relayList[j][1]))
-                energy_sensor_tx = float(
-                    bandwidth * (E_radio_S + (Transmit_amplifier * (dist ** 2))))
-                total_energy = energy_sensor_tx
-                Energy_Sensor[i][j] = total_energy
-        return Energy_Sensor
+        E_radio_S = 50.0 * (10**(-9))
+        Transmit_amplifier = 100.0 * (10**(-12))
+
+        print("\n[⚙️ System] Starting energy calculations...")
+        # Try GPU acceleration first
+        energy_matrix = GPUAccelerator.calculate_energy_matrix(
+            self.sensorList, self.relayList, bandwidth, E_radio_S, Transmit_amplifier)
+
+        if energy_matrix is not None:
+            print("[🚀 GPU] Successfully completed energy calculations using GPU")
+            return energy_matrix.tolist()
+
+        print(
+            "[💻 CPU] GPU calculation failed or not available, using vectorized CPU for energy calculations")
+        # Fall back to vectorized CPU processing
+
+        # Vectorized distance calculation
+        sensor_x = self.sensorList[:, 0].reshape(-1, 1)
+        sensor_y = self.sensorList[:, 1].reshape(-1, 1)
+        relay_x = self.relayList[:, 0].reshape(1, -1)
+        relay_y = self.relayList[:, 1].reshape(1, -1)
+
+        distances = np.sqrt(
+            (sensor_x - relay_x)**2 +
+            (sensor_y - relay_y)**2
+        )
+
+        # Vectorized energy calculation
+        energy_matrix = bandwidth * \
+            (E_radio_S + (Transmit_amplifier * (distances ** 2)))
+        return energy_matrix.tolist()
 
     def energy_r(self):
         bandwidth_r = 200.0
@@ -114,7 +133,7 @@ class EnergyCalculation:
         """Use KD-tree for efficient nearest neighbor search"""
         if not hasattr(self, '_kdtree'):
             self._kdtree = cKDTree(self.sensorList)
-        
+
         sensor_pos = self.sensorList[sensor_idx]
         neighbors = self._kdtree.query_ball_point(sensor_pos, radius)
         return [i for i in neighbors if i != sensor_idx]

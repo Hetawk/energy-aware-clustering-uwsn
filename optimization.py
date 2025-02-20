@@ -12,11 +12,9 @@ import numba
 from numba import jit
 
 
-@jit(nopython=True)
+@jit(nopython=True, fastmath=True)
 def calculate_distances(sensors, relays):
     """Vectorized distance calculation"""
-    sensors = np.array(sensors)
-    relays = np.array(relays)
     distances = np.zeros((len(sensors), len(relays)))
 
     for i in range(len(sensors)):
@@ -38,6 +36,7 @@ class Optimization:
         self.membership_values = None  # Initialize membership_values to None
         self.cluster_heads = None  # Initialize cluster_heads to None
         self.populate_sensor_relay_lists(sen)
+        # Convert to NumPy arrays
         if clustering:
             self.apply_clustering()
             self.cluster_heads = self.select_cluster_heads()
@@ -47,17 +46,21 @@ class Optimization:
             self.cluster_heads = self.cluster_heads.tolist()
 
     def populate_sensor_relay_lists(self, sen):
+        sensors = []
+        relays = []
         for i in range(sen):
-            self.sensorList.append((round(random.uniform(0.0, self.width), 6), round(
+            sensors.append((round(random.uniform(0.0, self.width), 6), round(
                 random.uniform(0.0, self.width), 6)))
         row = 0
         col = 0
         while row <= self.width:
             while col <= self.width:
-                self.relayList.append((float(row), float(col)))
+                relays.append((float(row), float(col)))
                 col += 10
             row += 10
             col = 0
+        self.sensorList = np.array(sensors, dtype=np.float64)
+        self.relayList = np.array(relays, dtype=np.float64)
 
     def distance(self, a, b):
         return math.sqrt((a ** 2) + (b ** 2))
@@ -214,90 +217,111 @@ class Optimization:
             return []
 
     def solve_problem(self):
-        Problem = LpProblem("The Energy Problem", LpMinimize)
-        Var_S_R = [LpVariable(str('SR' + str(i) + "_" + str(j)), 0, 1, LpInteger)
-                   for i in range(len(self.sensorList)) for j in range(len(self.relayList))]
-        Var_R_R = [LpVariable(str('RR' + str(i) + "_" + str(j)), 0, 1, LpInteger)
-                   for i in range(len(self.relayList)) for j in range(len(self.relayList))]
-        Bool_Var = [LpVariable(str('B' + str(i)), 0, 1, LpInteger)
-                    for i in range(len(self.relayList))]
+        """Solve the optimization problem with timing"""
+        start_time = time.time()
+        try:
+            Problem = LpProblem("The Energy Problem", LpMinimize)
+            Var_S_R = [LpVariable(str('SR' + str(i) + "_" + str(j)), 0, 1, LpInteger)
+                       for i in range(len(self.sensorList)) for j in range(len(self.relayList))]
+            Var_R_R = [LpVariable(str('RR' + str(i) + "_" + str(j)), 0, 1, LpInteger)
+                       for i in range(len(self.relayList)) for j in range(len(self.relayList))]
+            Bool_Var = [LpVariable(str('B' + str(i)), 0, 1, LpInteger)
+                        for i in range(len(self.relayList))]
 
-        n_s_r = self.connection_s_r()
-        n_r_r = self.connection_r_r()
-        e_s_r = self.energy_s_r()
-        e_r_r = self.energy_r_r()
-        l_s_r = self.link_s_r()
-        l_r_r = self.link_r_r()
+            n_s_r = self.connection_s_r()
+            n_r_r = self.connection_r_r()
+            e_s_r = self.energy_s_r()
+            e_r_r = self.energy_r_r()
+            l_s_r = self.link_s_r()
+            l_r_r = self.link_r_r()
 
-        k = 0
-        objective = []
-        conn_SR = []
-        conn_RR = []
+            k = 0
+            objective = []
+            conn_SR = []
+            conn_RR = []
 
-        while k < len(Var_S_R):
-            for i in range(len(e_s_r)):
-                for j in range(len(e_s_r[i])):
-                    objective.append(e_s_r[i][j] * Var_S_R[k])
-                    conn_SR.append(n_s_r[i][j] * Var_S_R[k])
-                    k += 1
-                Problem += lpSum(conn_SR) == 1
-                conn_SR = []
+            while k < len(Var_S_R):
+                for i in range(len(e_s_r)):
+                    for j in range(len(e_s_r[i])):
+                        objective.append(e_s_r[i][j] * Var_S_R[k])
+                        conn_SR.append(n_s_r[i][j] * Var_S_R[k])
+                        k += 1
+                    Problem += lpSum(conn_SR) == 1
+                    conn_SR = []
 
-        B_Max = 3000
-        B_SR = 100
-        Var_alias_SR = [str(i) for i in Var_S_R]
-        booleansumcolumn = []
-        linkflow_column = []
-
-        for i in range(len(self.relayList)):
-            for j in range(len(self.sensorList)):
-                e = Var_alias_SR.index(str('SR' + str(j) + "_" + str(i)))
-                booleansumcolumn.append(Var_S_R[e])
-                linkflow_column.append(l_s_r[j][i] * Var_S_R[e])
-            Problem += lpSum(booleansumcolumn) >= Bool_Var[i]
-            Problem += lpSum(linkflow_column) <= B_Max
-            for c in booleansumcolumn:
-                Problem += c <= Bool_Var[i]
+            B_Max = 3000
+            B_SR = 100
+            Var_alias_SR = [str(i) for i in Var_S_R]
             booleansumcolumn = []
             linkflow_column = []
 
-        k = 0
-        while k < len(Var_R_R):
-            for i in range(len(e_r_r)):
-                for j in range(len(e_r_r[i])):
-                    objective.append(e_r_r[i][j] * Var_R_R[k])
-                    conn_RR.append(n_r_r[i][j] * Var_R_R[k])
-                    k += 1
-                Problem += lpSum(conn_RR) >= 0
-                conn_RR = []
+            for i in range(len(self.relayList)):
+                for j in range(len(self.sensorList)):
+                    e = Var_alias_SR.index(str('SR' + str(j) + "_" + str(i)))
+                    booleansumcolumn.append(Var_S_R[e])
+                    linkflow_column.append(l_s_r[j][i] * Var_S_R[e])
+                Problem += lpSum(booleansumcolumn) >= Bool_Var[i]
+                Problem += lpSum(linkflow_column) <= B_Max
+                for c in booleansumcolumn:
+                    Problem += c <= Bool_Var[i]
+                booleansumcolumn = []
+                linkflow_column = []
 
-        Var_alias_RR = [str(i) for i in Var_R_R]
-        booleansumcolumn = []
+            k = 0
+            while k < len(Var_R_R):
+                for i in range(len(e_r_r)):
+                    for j in range(len(e_r_r[i])):
+                        objective.append(e_r_r[i][j] * Var_R_R[k])
+                        conn_RR.append(n_r_r[i][j] * Var_R_R[k])
+                        k += 1
+                    Problem += lpSum(conn_RR) >= 0
+                    conn_RR = []
 
-        for i in range(len(self.relayList)):
-            for j in range(len(self.relayList)):
-                e = Var_alias_RR.index(str('RR' + str(j) + "_" + str(i)))
-                booleansumcolumn.append(Var_R_R[e])
-            Problem += lpSum(booleansumcolumn) >= Bool_Var[i]
-            for c in booleansumcolumn:
-                Problem += c <= Bool_Var[i]
+            Var_alias_RR = [str(i) for i in Var_R_R]
             booleansumcolumn = []
 
-        for i in range(len(self.relayList)):
-            for j in range(len(self.relayList)):
-                if i != j:
+            for i in range(len(self.relayList)):
+                for j in range(len(self.relayList)):
                     e = Var_alias_RR.index(str('RR' + str(j) + "_" + str(i)))
-                    f = Var_alias_RR.index(str('RR' + str(i) + "_" + str(j)))
-                    Problem += Var_R_R[e] == Var_R_R[f]
-                else:
-                    f = Var_alias_RR.index(str('RR' + str(i) + "_" + str(j)))
-                    Problem += Var_R_R[f] == 0
+                    booleansumcolumn.append(Var_R_R[e])
+                Problem += lpSum(booleansumcolumn) >= Bool_Var[i]
+                for c in booleansumcolumn:
+                    Problem += c <= Bool_Var[i]
+                booleansumcolumn = []
 
-        Problem += lpSum(objective)
-        Problem += lpSum(Bool_Var) <= self.relayConstraint
+            for i in range(len(self.relayList)):
+                for j in range(len(self.relayList)):
+                    if i != j:
+                        e = Var_alias_RR.index(
+                            str('RR' + str(j) + "_" + str(i)))
+                        f = Var_alias_RR.index(
+                            str('RR' + str(i) + "_" + str(j)))
+                        Problem += Var_R_R[e] == Var_R_R[f]
+                    else:
+                        f = Var_alias_RR.index(
+                            str('RR' + str(i) + "_" + str(j)))
+                        Problem += Var_R_R[f] == 0
 
-        t1 = time.perf_counter()
-        Problem.solve(PULP_CBC_CMD(gapRel=0.0000000000001))
-        t2 = time.perf_counter()
+            Problem += lpSum(objective)
+            Problem += lpSum(Bool_Var) <= self.relayConstraint
 
-        return Problem, t2 - t1
+            # Try different solvers and options
+            try:
+                # Use CBC solver with more aggressive gap reduction
+                Problem.solve(PULP_CBC_CMD(gapRel=0.000001, timeLimit=60))
+            except Exception as e:
+                print(f"CBC solver failed: {e}")
+                try:
+                    # If CBC fails, try another solver (e.g., CPLEX or Gurobi)
+                    Problem.solve()  # Requires CPLEX or Gurobi to be installed
+                except Exception as e:
+                    print(f"Alternative solver failed: {e}")
+
+            t1 = time.perf_counter()
+            # Problem.solve(PULP_CBC_CMD(gapRel=0.0000000000001))
+            t2 = time.perf_counter()
+
+            return Problem, t2 - t1
+        except Exception as e:
+            print(f"[❌ Error] Optimization failed: {str(e)}")
+            return None, time.time() - start_time

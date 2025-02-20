@@ -1,7 +1,7 @@
 import json
 import os
 import numpy as np
-from evaluation import NetworkEvaluation
+from evaluation import NetworkEvaluation  # Updated import
 
 
 def save_summary(metrics, requirements, config_name, lifetime_improvement, energy_diff, load_diff):
@@ -41,7 +41,7 @@ def validate_implementation(config_file, config_name):
     config_data = config["configurations"][config_name]
     result_dir = os.path.join("results", config_name)
 
-    # Pass both config_data and result_dir path
+    # Using the new modular NetworkEvaluation
     evaluator = NetworkEvaluation(config_data, result_dir)
     metrics = evaluator.run_comparative_analysis()
 
