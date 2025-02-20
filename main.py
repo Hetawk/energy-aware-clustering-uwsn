@@ -36,16 +36,18 @@ def run_single_simulation(radius, count, rounds, width, relay_constraint, cluste
     energy_calculation = EnergyCalculation(
         optimization.sensorList, optimization.relayList)
     nw_e_s = energy_calculation.init_energy_s()
-    nw_e_r = energy_calculation.init_energy_r()
-
-    # Always pass the config-specific result_dir
-    sim_instance = Simulation(optimization.sensorList, optimization.relayList,
-                              optimization.connection_s_r(), optimization.connection_r_r(),
-                              optimization.membership_values, optimization.cluster_heads,
-                              rounds, result_dir=result_dir)
-
-    state_s = sim_instance.state_matrix()
-    final_energy_s, init_energy_s = sim_instance.simu_network(
+    # Removed nw_e_r and state_s since they are not used.
+    sim_instance = Simulation(
+        optimization.sensorList,
+        optimization.relayList,
+        optimization.connection_s_r(),
+        optimization.connection_r_r(),
+        optimization.membership_values,
+        optimization.cluster_heads,
+        rounds,
+        result_dir=result_dir
+    )
+    final_energy_s, init_energy_s, first_death, last_death = sim_instance.simu_network(
         nw_e_s)
 
     consumed = sum(sum(row) for row in init_energy_s) - \
@@ -53,7 +55,7 @@ def run_single_simulation(radius, count, rounds, width, relay_constraint, cluste
     relays = len(optimization.relayList)
     energy = consumed
 
-    return relays, energy, time_taken
+    return relays, energy, time_taken, first_death, last_death
 
 
 def run_simulations(radius, sensor_counts, rounds, width, relay_constraint, clustering, result_dir):
@@ -83,7 +85,7 @@ def run_simulations(radius, sensor_counts, rounds, width, relay_constraint, clus
         ]
         results = [f.result() for f in futures]
 
-    relays, energies, times = zip(*results)
+    relays, energies, times, first_deaths, last_deaths = zip(*results)
 
     # Save all results under config directory
     save_to_csv(os.path.join(result_dir, "network", "relays.csv"),
@@ -93,7 +95,7 @@ def run_simulations(radius, sensor_counts, rounds, width, relay_constraint, clus
     save_to_csv(os.path.join(result_dir, "evaluation", "metrics", "times.csv"),
                 ["Sensor Count", "Time Taken"], zip(sensor_counts, times))
 
-    return relays, energies, times
+    return relays, energies, times, first_deaths, last_deaths
 
 
 def ensure_dirs(*paths):
@@ -162,7 +164,7 @@ def main():
                     if not handler.should_stop:
                         # First run with clustering enabled
                         logging.info("Running simulation with clustering...")
-                        relays_c, energies_c, times_c = run_simulations(
+                        relays_c, energies_c, times_c, first_deaths_c, last_deaths_c = run_simulations(
                             config_set["radius"],
                             config_set["sensor_counts"],
                             config_set["rounds"],
@@ -177,7 +179,7 @@ def main():
                         # Then run without clustering
                         logging.info(
                             "Running simulation without clustering...")
-                        relays_nc, energies_nc, times_nc = run_simulations(
+                        relays_nc, energies_nc, times_nc, first_deaths_nc, last_deaths_nc = run_simulations(
                             config_set["radius"],
                             config_set["sensor_counts"],
                             config_set["rounds"],
@@ -190,7 +192,7 @@ def main():
 
                 else:
                     # Single mode - use the clustering flag as specified
-                    relays, energies, times = run_simulations(
+                    relays, energies, times, first_deaths, last_deaths = run_simulations(
                         config_set["radius"],
                         config_set["sensor_counts"],
                         config_set["rounds"],

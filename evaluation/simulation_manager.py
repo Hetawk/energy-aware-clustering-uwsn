@@ -74,11 +74,14 @@ class SimulationManager:
                          opt.membership_values, opt.cluster_heads,
                          rounds, result_dir=self.evaluation.results_dir)
 
-        # Removed state_s; call simu_network with nw_e_s only.
-        final_energy_s, init_energy_s = sim.simu_network(nw_e_s)
+        # Update: Unpack four values from simu_network
+        final_energy_s, init_energy_s, first_death, last_death = sim.simu_network(
+            nw_e_s)
         return {
             'final_energy': final_energy_s,
             'initial_energy': init_energy_s,
+            'first_death': first_death,
+            'last_death': last_death,
             'opt': opt,
             'energy_calc': energy_calc
         }
