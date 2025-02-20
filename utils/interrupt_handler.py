@@ -21,7 +21,7 @@ class GracefulInterruptHandler:
         signal.signal(signal.SIGTERM, self._signal_handler)
         return self
 
-    def __exit__(self, type, value, tb):
+    def __exit__(self, exc_type, value, tb):
         self.release()
 
     def release(self):

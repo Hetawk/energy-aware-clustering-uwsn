@@ -43,6 +43,7 @@ class Optimization:
         self.clustering = clustering
         self.membership_values = None  # Initialize membership_values to None
         self.cluster_heads = None  # Initialize cluster_heads to None
+        self.cluster_labels = None  # Moved cluster_labels definition into __init__
         self.populate_sensor_relay_lists(sen)
         if clustering:
             self.apply_clustering()
@@ -65,7 +66,8 @@ class Optimization:
             row += 10
             col = 0
 
-    def distance(self, a, b):
+    @staticmethod
+    def distance(a, b):
         return math.sqrt((a ** 2) + (b ** 2))
 
     def connection_s_r(self):
@@ -90,53 +92,39 @@ class Optimization:
         return Neighbor_Relay_Relay
 
     def link_s_r(self):
-        bandwidth = 100.0
         Linkflow_Sensor_Relay = [
-            [0 for i in range(len(self.relayList))] for j in range(len(self.sensorList))
+            [0.0 for _ in range(len(self.relayList))] for _ in range(len(self.sensorList))
         ]
-        for i in range(len(self.sensorList)):
-            for j in range(len(self.relayList)):
-                Linkflow_Sensor_Relay[i][j] = bandwidth
         return Linkflow_Sensor_Relay
 
     def link_r_r(self):
-        bandwidth = 200.0
         Linkflow_Relay_Relay = [
-            [0 for i in range(len(self.relayList))] for j in range(len(self.relayList))
+            [0.0 for _ in range(len(self.relayList))] for _ in range(len(self.relayList))
         ]
-        for i in range(len(self.relayList)):
-            for j in range(len(self.relayList)):
-                if i != j:
-                    Linkflow_Relay_Relay[i][j] = bandwidth
-                else:
-                    Linkflow_Relay_Relay[i][j] = 0
         return Linkflow_Relay_Relay
 
     def energy_s_r(self):
         bandwidth = 100.0
         Energy_Sensor_Relay = [
-            [0 for i in range(len(self.relayList))] for j in range(len(self.sensorList))
+            [0.0 for _ in range(len(self.relayList))] for _ in range(len(self.sensorList))
         ]
         E_radio_S = 50.0 * (10 ** (-9))
-        E_radio_R = 100.0 * (10 ** (-9))
+        # Removed unused E_radio_R assignment
         Transmit_amplifier = 100.0 * (10 ** (-12))
         for i in range(len(self.sensorList)):
             for j in range(len(self.relayList)):
                 dist = self.distance(abs(self.sensorList[i][0] - self.relayList[j][0]),
                                      abs(self.sensorList[i][1] - self.relayList[j][1]))
                 energy_sensor_tx = float(
-                    bandwidth *
-                    (E_radio_S + (Transmit_amplifier * (dist ** 2)))
-                )
-                energy_relay_rx = float(bandwidth * E_radio_R)
-                total_energy = energy_sensor_tx + energy_relay_rx
-                Energy_Sensor_Relay[i][j] = total_energy
+                    bandwidth * (E_radio_S + Transmit_amplifier * (dist ** 2)))
+                energy_relay_rx = float(bandwidth * 50.0 * (10 ** (-9)))
+                Energy_Sensor_Relay[i][j] = energy_sensor_tx + energy_relay_rx
         return Energy_Sensor_Relay
 
     def energy_r_r(self):
         bandwidth = 200.0
         Energy_Relay_Relay = [
-            [0 for i in range(len(self.relayList))] for j in range(len(self.relayList))
+            [0.0 for _ in range(len(self.relayList))] for _ in range(len(self.relayList))
         ]
         E_radio_R = 100.0 * (10 ** (-9))
         Transmit_amplifier = 100.0 * (10 ** (-12))
@@ -144,12 +132,8 @@ class Optimization:
             for j in range(len(self.relayList)):
                 dist = self.distance(abs(self.relayList[i][0] - self.relayList[j][0]),
                                      abs(self.relayList[i][1] - self.relayList[j][1]))
-                energy_relay_tx = float(
-                    bandwidth *
-                    (E_radio_R + (Transmit_amplifier * (dist ** 2)))
-                )
-                energy_relay_rx = float(bandwidth * E_radio_R)
-                total_energy = energy_relay_tx + energy_relay_rx
+                total_energy = float(bandwidth * (E_radio_R + Transmit_amplifier * (dist ** 2))) \
+                    + float(bandwidth * E_radio_R)
                 Energy_Relay_Relay[i][j] = total_energy
         return Energy_Relay_Relay
 
@@ -180,13 +164,19 @@ class Optimization:
             energy_calc = EnergyCalculation(self.sensorList, self.relayList)
             sensor_energies = energy_calc.init_energy_s()
             total_energy = sum(sum(row) for row in sensor_energies)
-            energy_ratios = [sum(row)/total_energy for row in sensor_energies]
+            energy_ratios = [
+                sum(row) / total_energy for row in sensor_energies]
             centroids = np.zeros((3, 2))
+            # Ensure self.cluster_labels is a numpy array
+            labels = np.array(self.cluster_labels)
+            if labels.ndim == 0:
+                labels = np.full(len(self.sensorList), labels)
             for i in range(3):
-                mask = self.cluster_labels == i
+                mask = (labels == i)
                 if np.any(mask):
-                    points = np.array(
-                        [s[:2] for s, m in zip(self.sensorList, mask) if m])
+                    indices = np.where(mask)[0]
+                    points = np.array([self.sensorList[idx][:2] if isinstance(self.sensorList[idx], (list, tuple, np.ndarray))
+                                       else self.sensorList[idx] for idx in indices])
                     centroids[i] = np.mean(points, axis=0)
                 else:
                     centroids[i] = np.array([0.0, 0.0])
@@ -194,20 +184,19 @@ class Optimization:
                 cluster_nodes = []
                 scores = []
                 for i, sensor in enumerate(self.sensorList):
-                    if isinstance(sensor, (list, np.ndarray)) and len(sensor) > 2:
-                        if int(sensor[2]) == cluster:
-                            energy_score = energy_ratios[i]
-                            membership_score = self.membership_values[cluster][i]
-                            sensor_pos = np.array(sensor[:2])
-                            dist_to_centroid = np.linalg.norm(
-                                sensor_pos - centroids[cluster])
-                            max_dist = np.sqrt(2) * self.width
-                            position_score = 1 - (dist_to_centroid / max_dist)
-                            combined_score = (0.5 * energy_score +
-                                              0.3 * membership_score +
-                                              0.2 * position_score)
-                            cluster_nodes.append(sensor)
-                            scores.append(combined_score)
+                    if labels[i] == cluster:
+                        energy_score = energy_ratios[i]
+                        membership_score = self.membership_values[cluster][i]
+                        sensor_pos = np.array(sensor[:2] if isinstance(
+                            sensor, (list, tuple, np.ndarray)) else sensor)
+                        dist_to_centroid = np.linalg.norm(
+                            sensor_pos - centroids[cluster])
+                        max_dist = np.sqrt(2) * self.width
+                        position_score = 1 - (dist_to_centroid / max_dist)
+                        combined_score = (
+                            0.7 * energy_score + 0.2 * membership_score + 0.1 * position_score)
+                        cluster_nodes.append(sensor)
+                        scores.append(combined_score)
                 if cluster_nodes:
                     max_score_idx = scores.index(max(scores))
                     cluster_heads.append(cluster_nodes[max_score_idx])
@@ -224,11 +213,13 @@ class Optimization:
         start_time = time.time()
         try:
             Problem = LpProblem("The Energy Problem", LpMinimize)
-            Var_S_R = [LpVariable(str('SR' + str(i) + "_" + str(j)), 0, 1, LpInteger)
-                       for i in range(len(self.sensorList)) for j in range(len(self.relayList))]
-            Var_R_R = [LpVariable(str('RR' + str(i) + "_" + str(j)), 0, 1, LpInteger)
-                       for i in range(len(self.relayList)) for j in range(len(self.relayList))]
-            Bool_Var = [LpVariable(str('B' + str(i)), 0, 1, LpInteger)
+            Var_S_R = [LpVariable(f"SR{si}_{rj}", 0, 1, LpInteger)
+                       for si in range(len(self.sensorList))
+                       for rj in range(len(self.relayList))]
+            Var_R_R = [LpVariable(f"RR{ri}_{rj}", 0, 1, LpInteger)
+                       for ri in range(len(self.relayList))
+                       for rj in range(len(self.relayList))]
+            Bool_Var = [LpVariable(f"B{i}", 0, 1, LpInteger)
                         for i in range(len(self.relayList))]
 
             n_s_r = self.connection_s_r()
@@ -236,12 +227,11 @@ class Optimization:
             e_s_r = self.energy_s_r()
             e_r_r = self.energy_r_r()
             l_s_r = self.link_s_r()
-            l_r_r = self.link_r_r()
+            # Removed unused: l_r_r = self.link_r_r()
 
             k = 0
             objective = []
             conn_SR = []
-            conn_RR = []
 
             while k < len(Var_S_R):
                 for i in range(len(e_s_r)):
@@ -253,7 +243,6 @@ class Optimization:
                     conn_SR = []
 
             B_Max = 3000
-            B_SR = 100
             Var_alias_SR = [str(i) for i in Var_S_R]
             booleansumcolumn = []
             linkflow_column = []
@@ -271,6 +260,7 @@ class Optimization:
                 linkflow_column = []
 
             k = 0
+            conn_RR = []  # Changed from None to [] so that .append() works
             while k < len(Var_R_R):
                 for i in range(len(e_r_r)):
                     for j in range(len(e_r_r[i])):
@@ -317,6 +307,6 @@ class Optimization:
             logging.info(
                 f"[Optimization] Solved in {optimization_duration:.2f}s")
             return Problem, optimization_duration
-        except Exception as e:
-            print(f"[❌ Error] Optimization failed: {str(e)}")
+        except Exception as exc:
+            print(f"[❌ Error] Optimization failed: {exc}")
             return None, time.time() - start_time

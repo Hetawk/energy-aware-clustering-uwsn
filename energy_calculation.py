@@ -50,20 +50,20 @@ class EnergyCalculation:
     def energy_r(self):
         bandwidth_r = 200.0
         bandwidth_s = 100.0
-        Energy_Relay_Relay = [[(0, 0) for i in range(len(self.relayList))]
-                              for j in range(len(self.relayList))]
+        Energy_Relay_Relay = [[(0.0, 0.0, 0.0) for _ in range(len(self.relayList))]
+                              for _ in range(len(self.relayList))]
         E_radio_R = 100.0 * (10 ** (-9))
         Transmit_amplifier = 100.0 * (10 ** (-12))
         E_aggregation = 0.00001
         for i in range(len(self.relayList)):
             for j in range(len(self.relayList)):
-                dist = self.distance(abs(self.relayList[i][0] - self.relayList[j][0]), abs(
-                    self.relayList[i][1] - self.relayList[j][1]))
+                dist = self.distance(abs(self.relayList[i][0] - self.relayList[j][0]),
+                                     abs(self.relayList[i][1] - self.relayList[j][1]))
                 energy_relay_tx = float(
                     bandwidth_r * (E_radio_R + (Transmit_amplifier * (dist ** 2))))
                 energy_relay_rx = float(bandwidth_r * E_radio_R)
                 energy_relay_rx_s = float(bandwidth_s * E_radio_R)
-                total_energy = (energy_relay_tx + energy_relay_rx)
+                total_energy = energy_relay_tx + energy_relay_rx
                 Energy_Relay_Relay[i][j] = (
                     total_energy, energy_relay_rx_s, E_aggregation)
         return Energy_Relay_Relay
@@ -82,11 +82,9 @@ class EnergyCalculation:
                   for i in range(len(self.sensorList))]
         return nw_e_s
 
-    def distance(self, a, b):
-        """Calculate distance between two points"""
-        if isinstance(a, (tuple, list, np.ndarray)) and isinstance(b, (tuple, list, np.ndarray)):
-            return math.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
-        return math.sqrt(a**2 + b**2)
+    @staticmethod
+    def distance(a, b):
+        return math.sqrt((a - b)**2)
 
     def calculate_load_balance(self, nw_e_s):
         """Enhanced load balance calculation with progressive thresholds"""
@@ -130,12 +128,13 @@ class EnergyCalculation:
         return load_factors
 
     def _get_sensor_neighbors(self, sensor_idx, radius=None):
-        """Use KD-tree for efficient nearest neighbor search"""
+        if radius is None:
+            radius = 1.0
         if not hasattr(self, '_kdtree'):
             self._kdtree = cKDTree(self.sensorList)
-
         sensor_pos = self.sensorList[sensor_idx]
-        neighbors = self._kdtree.query_ball_point(sensor_pos, radius)
+        # Explicitly set p=2 so the parameter is filled.
+        neighbors = self._kdtree.query_ball_point(sensor_pos, radius, p=2)
         return [i for i in neighbors if i != sensor_idx]
 
     def adjust_energy_distribution(self, nw_e_s, nw_e_r):
@@ -151,3 +150,8 @@ class EnergyCalculation:
                         nw_e_s[i][j] *= (1 - load_factor/2)
 
         return nw_e_s, nw_e_r
+
+
+def compute_energy(energy_tuple):
+    energy_value = energy_tuple[0]  # using first element; adjust if needed
+    return energy_value

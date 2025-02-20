@@ -2,7 +2,8 @@ import numpy as np
 
 
 class MetricsCalculator:
-    def calculate_network_lifetime(self, final_energy):
+    @staticmethod
+    def calculate_network_lifetime(final_energy):
         """Calculate network lifetime as rounds until first node dies"""
         try:
             final_energy = np.array(final_energy) if not isinstance(
@@ -13,17 +14,20 @@ class MetricsCalculator:
             print(f"Network lifetime calculation error: {e}")
             return 0.0
 
-    def calculate_energy_consumption(self, initial_energy, final_energy):
+    @staticmethod
+    def calculate_energy_consumption(initial_energy, final_energy):
         """Calculate total energy consumed"""
         return np.sum(initial_energy) - np.sum(final_energy)
 
-    def calculate_alive_sensors(self, final_energy):
+    @staticmethod
+    def calculate_alive_sensors(final_energy):
         """Calculate ratio of alive sensors"""
         total = len(final_energy)
         alive = sum(1 for row in final_energy if np.sum(row) > 0)
         return alive / total
 
-    def calculate_cluster_balance(self, cluster_labels, final_energy):
+    @staticmethod
+    def calculate_cluster_balance(cluster_labels, final_energy):
         """Calculate energy balance among clusters"""
         unique_clusters = np.unique(cluster_labels)
         cluster_energies = []

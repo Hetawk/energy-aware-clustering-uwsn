@@ -15,6 +15,7 @@ from evaluation import NetworkEvaluation  # Updated import
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor
 import signal
+import logging
 
 
 def save_to_csv(filename, headers, data):
@@ -45,7 +46,7 @@ def run_single_simulation(radius, count, rounds, width, relay_constraint, cluste
 
     state_s = sim_instance.state_matrix()
     final_energy_s, init_energy_s = sim_instance.simu_network(
-        nw_e_s, nw_e_r, state_s)
+        nw_e_s)
 
     consumed = sum(sum(row) for row in init_energy_s) - \
         sum(sum(row) for row in final_energy_s)
@@ -55,7 +56,7 @@ def run_single_simulation(radius, count, rounds, width, relay_constraint, cluste
     return relays, energy, time_taken
 
 
-def run_simulations(radius, sensor_counts, rounds, width, relay_constraint, clustering, result_dir, interrupt_handler):
+def run_simulations(radius, sensor_counts, rounds, width, relay_constraint, clustering, result_dir):
     """Run simulations with all output going to config-specific directory"""
     relays = []
     energies = []
@@ -95,6 +96,11 @@ def run_simulations(radius, sensor_counts, rounds, width, relay_constraint, clus
     return relays, energies, times
 
 
+def ensure_dirs(*paths):
+    for path in paths:
+        os.makedirs(path, exist_ok=True)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run network simulations and validation.")
@@ -112,41 +118,42 @@ def main():
     args = parser.parse_args()
 
     try:
-        def handle_interrupt(signum, frame):
-            print("\n\n[⚠️ Interrupt] Caught Ctrl+C...")
+        def handle_interrupt(_signum, _frame):
+            logging.info(
+                "Interrupt caught. Prompting user for stop confirmation.")
             answer = input(
                 "Do you want to stop the program? (y/N): ").strip().lower()
             if answer == 'y':
-                print("[🛑 Stopping] Gracefully shutting down...")
+                logging.info("Shutting down gracefully...")
                 sys.exit(0)
-            print("[▶️ Continuing] Resuming execution...")
+            logging.info("Resuming execution...")
 
         # Set up interrupt handling
         signal.signal(signal.SIGINT, handle_interrupt)
 
         with GracefulInterruptHandler() as handler:
-            # Load configuration first
-            print("\n[⚙️ System] Loading configuration...")
+            logging.info("Loading configuration...")
             with open(args.config, 'r') as f:
                 config = json.load(f)
 
             if args.set not in config["configurations"]:
-                print(f"[❌ Error] Configuration set '{args.set}' not found!")
+                logging.error(f"Configuration set '{args.set}' not found!")
                 return
 
             config_set = config["configurations"][args.set]
 
-            # Print configuration details
-            print(f"[⚙️ System] Configuration loaded: {args.set}")
-            print(f"[⚙️ System] Sensor counts: {config_set['sensor_counts']}")
-            print(f"[⚙️ System] Rounds: {config_set['rounds']}")
+            logging.info(f"Configuration loaded: {args.set}")
+            logging.info(
+                f"Sensor counts: {config_set['sensor_counts']}, Rounds: {config_set['rounds']}")
 
             # Check GPU availability
             GPUAccelerator.is_available()
 
             # Create result directory
             result_dir = os.path.join("results", args.set)
-            print(f"[📁 System] Results will be saved to: {result_dir}")
+            ensure_dirs(result_dir, os.path.join(
+                result_dir, "evaluation", "figures"))
+            logging.info(f"Results will be saved to: {result_dir}")
 
             # Rest of the simulation code...
             if args.mode in ['simulate', 'both']:
@@ -154,7 +161,7 @@ def main():
                 if args.mode == 'both':
                     if not handler.should_stop:
                         # First run with clustering enabled
-                        print("\nRunning simulation with clustering...")
+                        logging.info("Running simulation with clustering...")
                         relays_c, energies_c, times_c = run_simulations(
                             config_set["radius"],
                             config_set["sensor_counts"],
@@ -162,14 +169,14 @@ def main():
                             config_set["width"],
                             config_set["relay_constraint"],
                             clustering=True,
-                            result_dir=result_dir,
-                            interrupt_handler=handler
+                            result_dir=result_dir
                         )
-                        print(f"Time taken (clustering): {times_c}")
+                        logging.info(f"Time taken (clustering): {times_c}")
 
                     if not handler.should_stop:
                         # Then run without clustering
-                        print("\nRunning simulation without clustering...")
+                        logging.info(
+                            "Running simulation without clustering...")
                         relays_nc, energies_nc, times_nc = run_simulations(
                             config_set["radius"],
                             config_set["sensor_counts"],
@@ -177,10 +184,9 @@ def main():
                             config_set["width"],
                             config_set["relay_constraint"],
                             clustering=False,
-                            result_dir=result_dir,
-                            interrupt_handler=handler
+                            result_dir=result_dir
                         )
-                        print(f"Time taken (no clustering): {times_nc}")
+                        logging.info(f"Time taken (no clustering): {times_nc}")
 
                 else:
                     # Single mode - use the clustering flag as specified
@@ -191,10 +197,9 @@ def main():
                         config_set["width"],
                         config_set["relay_constraint"],
                         clustering=args.clustering,
-                        result_dir=result_dir,
-                        interrupt_handler=handler
+                        result_dir=result_dir
                     )
-                    print(f"Time taken: {times}")
+                    logging.info(f"Time taken: {times}")
 
                 # Generate comparison plots if we have both results
                 if args.mode == 'both':
@@ -229,16 +234,17 @@ def main():
             if args.mode in ['validate', 'both'] and not handler.should_stop:
                 validation_results = validate_implementation(
                     args.config, args.set)
+                logging.info(f"Validation results: {validation_results}")
 
     except KeyboardInterrupt:
-        print("\n[🛑 Interrupted] Program terminated by user")
+        logging.error("Program terminated by user")
         sys.exit(1)
     except FileNotFoundError:
-        print(f"[❌ Error] Configuration file '{args.config}' not found!")
+        logging.error(f"Configuration file '{args.config}' not found!")
     except json.JSONDecodeError:
-        print(f"[❌ Error] Invalid JSON in configuration file!")
+        logging.error(f"Invalid JSON in configuration file!")
     except Exception as e:
-        print(f"[❌ Error] An unexpected error occurred: {str(e)}")
+        logging.error(f"Unexpected error: {str(e)}", exc_info=True)
         sys.exit(1)
 
 

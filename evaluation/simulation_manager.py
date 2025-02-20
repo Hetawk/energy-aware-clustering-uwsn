@@ -36,14 +36,10 @@ class SimulationManager:
                         f"[❌ Error] Simulation failed for {count} sensors: {str(e)}")
                     self._store_default_results(results)
 
-        # Convert all results to numpy arrays
-        for key in results:
-            results[key] = np.array(results[key])
-
         return results
 
-    def _initialize_results(self):
-        """Initialize results dictionary with required metrics"""
+    @staticmethod
+    def _initialize_results():
         return {
             'network_lifetime': [],
             'energy_consumption': [],
@@ -66,21 +62,20 @@ class SimulationManager:
         os.makedirs(os.path.join(
             self.evaluation.results_dir, "state"), exist_ok=True)
 
+        # Initialize energy calculations
         opt = Optimization(radius, count, width,
                            relay_constraint, clustering=clustering)
         energy_calc = EnergyCalculation(opt.sensorList, opt.relayList)
         nw_e_s = energy_calc.init_energy_s()
-        nw_e_r = energy_calc.init_energy_r()
+        # Removed nw_e_r initialization
 
         sim = Simulation(opt.sensorList, opt.relayList,
                          opt.connection_s_r(), opt.connection_r_r(),
                          opt.membership_values, opt.cluster_heads,
                          rounds, result_dir=self.evaluation.results_dir)
 
-        state_s = sim.state_matrix()
-        final_energy_s, init_energy_s = sim.simu_network(
-            nw_e_s, nw_e_r, state_s)
-
+        # Removed state_s; call simu_network with nw_e_s only.
+        final_energy_s, init_energy_s = sim.simu_network(nw_e_s)
         return {
             'final_energy': final_energy_s,
             'initial_energy': init_energy_s,

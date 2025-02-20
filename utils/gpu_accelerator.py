@@ -6,18 +6,19 @@ try:
         GPU_NAME = GPU_INFO["name"].decode('utf-8')
         GPU_AVAILABLE = True
         print(f"\n[🚀 GPU] Found {GPU_NAME}")
-    except Exception as e:
+    except Exception as exc:
         GPU_AVAILABLE = False
         GPU_NAME = None
-        print(f"\n[❌ GPU] Error initializing GPU: {str(e)}")
+        print(f"\n[❌ GPU] Error initializing GPU: {exc}")
 except ImportError:
     GPU_AVAILABLE = False
     GPU_NAME = None
+    cp = None
     print("\n[❌ GPU] CUDA/cupy not installed. Install with: pip install cupy-cuda11x")
-except Exception as e:
+except Exception as exc:
     GPU_AVAILABLE = False
     GPU_NAME = None
-    print(f"\n[❌ GPU] Error initializing GPU: {str(e)}")
+    print(f"\n[❌ GPU] Error initializing GPU: {exc}")
 
 import numba
 numba.config.THREADING_LAYER = 'tbb'

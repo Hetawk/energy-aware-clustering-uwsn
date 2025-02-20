@@ -29,10 +29,12 @@ class EnergyPlots:
         x = np.arange(len(sensor_counts))
         width = 0.35
 
-        efficiency_with = metrics['with_clustering']['network_lifetime'] / \
-            (metrics['with_clustering']['energy_consumption'] + 1e-10)
-        efficiency_without = metrics['without_clustering']['network_lifetime'] / \
-            (metrics['without_clustering']['energy_consumption'] + 1e-10)
+        avg_energy_with = np.mean(
+            metrics['with_clustering']['energy_consumption'])
+        avg_energy_without = np.mean(
+            metrics['without_clustering']['energy_consumption'])
+        efficiency_with = avg_energy_with + 1e-10
+        efficiency_without = avg_energy_without + 1e-10
 
         plt.bar(x - width/2, efficiency_with,
                 width, label='With Clustering', color='lightgreen')

@@ -123,3 +123,15 @@ class ResultsManager:
 
         except Exception as e:
             print(f"Error saving summary: {str(e)}")
+
+    def save_partial_results(self, metrics, sensor_counts):
+        """Save partial simulation results when interrupted"""
+        partial_file = os.path.join(self.results_dir, "partial_results.txt")
+        try:
+            with open(partial_file, "w") as f:
+                f.write("Partial Results:\n")
+                f.write(f"Sensor Counts: {sensor_counts}\n")
+                f.write(f"Metrics: {str(metrics)}\n")
+            print("Partial results saved to:", partial_file)
+        except Exception as e:
+            print("Failed to save partial results:", e)
