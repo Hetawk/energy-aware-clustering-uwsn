@@ -181,16 +181,26 @@ class Simulation:
                 network_file.write(
                     f"sensors: {len(self.sensorList)}\nRelays: {len(self.relayList)}\n\n")
                 total_energy = 0
-                # Removed unused variables: PH_list_sensors, s_counter and srpfile.
+                # Example simulation logic: for each round, reduce energy on active links by a fixed consumption.
+                consumption = 0.01  # Example consumption per active connection
                 for rnd in range(self.rounds):
-                    # Dummy simulation logic; implement your simulation here.
-                    pass
+                    # For each sensor-relay pair with a connection, subtract energy consumption.
+                    for i in range(len(self.sensorList)):
+                        for j in range(len(self.relayList)):
+                            if self.Fin_Conn_S_R[i][j] == 1 and self.nw_e_s[i][j] > 0:
+                                self.nw_e_s[i][j] = max(
+                                    0, self.nw_e_s[i][j] - consumption)
+                    # Optionally, log round info (you can also update a per-round energy consumption record)
+                    total_energy = np.sum(
+                        init_energy_copy) - np.sum(self.nw_e_s)
+                    network_file.write(
+                        f"Round {rnd+1}: Total energy used so far: {total_energy:.4f}\n")
                 simulation_duration = time.time() - simulation_start_time
                 network_file.write(
-                    f"Simulation Duration (s): {simulation_duration}\n")
-                network_file.write(f"total rounds: {rnd+1}\n")
-                network_file.write(f"total Energy used: {total_energy}\n")
-            return nw_e_s, init_energy_copy
+                    f"\nSimulation Duration (s): {simulation_duration}\n")
+                network_file.write(f"Total rounds: {self.rounds}\n")
+                network_file.write(f"Total Energy used: {total_energy:.4f}\n")
+            return self.nw_e_s, init_energy_copy
         except Exception as e:
             logging.error(f"Simulation failed: {str(e)}", exc_info=True)
             return None, None
