@@ -76,8 +76,8 @@ class EnergyCalculation:
         return nw_e_r
 
     def init_energy_s(self):
-        """Initialize sensor energy with higher values"""
-        init_e_s = 0.5  # Initial energy per sensor
+        """Initialize sensor energy with lower values to simulate sensor deaths"""
+        init_e_s = 0.2  # Lower initial energy per sensor
         nw_e_s = [[init_e_s for j in range(len(self.relayList))]
                   for i in range(len(self.sensorList))]
         return nw_e_s

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Config: use "default", "test0", "test1", etc.
-CONFIG_SET="default"
+CONFIG_SET="test2"
 
 # Clean up any existing results for this config
 rm -rf "results/$CONFIG_SET"
