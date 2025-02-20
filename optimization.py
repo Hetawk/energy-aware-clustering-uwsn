@@ -1,20 +1,26 @@
-# optimization.py
-import random
-import math
-import time
-import numpy as np
-import networkx as nx
-from pulp import LpInteger, LpProblem, LpVariable, LpMinimize, PULP_CBC_CMD, lpSum
-from networkx.algorithms.approximation.steinertree import steiner_tree
-import skfuzzy as fuzz
-from energy_calculation import EnergyCalculation  # Add this import
-import numba
 from numba import jit
+import numba
+from energy_calculation import EnergyCalculation  # Add this import
+import skfuzzy as fuzz
+from networkx.algorithms.approximation.steinertree import steiner_tree
+from pulp import LpInteger, LpProblem, LpVariable, LpMinimize, PULP_CBC_CMD, lpSum
+import networkx as nx
+import numpy as np
+import time
+import math
+import random
+import warnings
+from numba import NumbaPendingDeprecationWarning
+warnings.filterwarnings("ignore", category=NumbaPendingDeprecationWarning)
+
+# optimization.py
 
 
-@jit(nopython=True, fastmath=True)
+@jit(nopython=True)
 def calculate_distances(sensors, relays):
     """Vectorized distance calculation"""
+    sensors = np.array(sensors)
+    relays = np.array(relays)
     distances = np.zeros((len(sensors), len(relays)))
 
     for i in range(len(sensors)):
@@ -36,7 +42,6 @@ class Optimization:
         self.membership_values = None  # Initialize membership_values to None
         self.cluster_heads = None  # Initialize cluster_heads to None
         self.populate_sensor_relay_lists(sen)
-        # Convert to NumPy arrays
         if clustering:
             self.apply_clustering()
             self.cluster_heads = self.select_cluster_heads()
@@ -46,21 +51,17 @@ class Optimization:
             self.cluster_heads = self.cluster_heads.tolist()
 
     def populate_sensor_relay_lists(self, sen):
-        sensors = []
-        relays = []
         for i in range(sen):
-            sensors.append((round(random.uniform(0.0, self.width), 6), round(
+            self.sensorList.append((round(random.uniform(0.0, self.width), 6), round(
                 random.uniform(0.0, self.width), 6)))
         row = 0
         col = 0
         while row <= self.width:
             while col <= self.width:
-                relays.append((float(row), float(col)))
+                self.relayList.append((float(row), float(col)))
                 col += 10
             row += 10
             col = 0
-        self.sensorList = np.array(sensors, dtype=np.float64)
-        self.relayList = np.array(relays, dtype=np.float64)
 
     def distance(self, a, b):
         return math.sqrt((a ** 2) + (b ** 2))
@@ -305,20 +306,8 @@ class Optimization:
             Problem += lpSum(objective)
             Problem += lpSum(Bool_Var) <= self.relayConstraint
 
-            # Try different solvers and options
-            try:
-                # Use CBC solver with more aggressive gap reduction
-                Problem.solve(PULP_CBC_CMD(gapRel=0.000001, timeLimit=60))
-            except Exception as e:
-                print(f"CBC solver failed: {e}")
-                try:
-                    # If CBC fails, try another solver (e.g., CPLEX or Gurobi)
-                    Problem.solve()  # Requires CPLEX or Gurobi to be installed
-                except Exception as e:
-                    print(f"Alternative solver failed: {e}")
-
             t1 = time.perf_counter()
-            # Problem.solve(PULP_CBC_CMD(gapRel=0.0000000000001))
+            Problem.solve(PULP_CBC_CMD(gapRel=0.0000000000001))
             t2 = time.perf_counter()
 
             return Problem, t2 - t1

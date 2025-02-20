@@ -4,7 +4,6 @@ import csv
 import json
 import argparse
 import sys
-import concurrent
 import matplotlib.pyplot as plt
 from optimization import Optimization
 from simulation import Simulation
@@ -57,100 +56,41 @@ def run_single_simulation(radius, count, rounds, width, relay_constraint, cluste
 
 
 def run_simulations(radius, sensor_counts, rounds, width, relay_constraint, clustering, result_dir, interrupt_handler):
-    """Run simulations with interrupt handling"""
+    """Run simulations with all output going to config-specific directory"""
     relays = []
     energies = []
     times = []
 
-    # Create directories
+    # Create all directories under the config-specific folder
     os.makedirs(result_dir, exist_ok=True)
     os.makedirs(os.path.join(result_dir, "network"), exist_ok=True)
     os.makedirs(os.path.join(result_dir, "energy"), exist_ok=True)
     os.makedirs(os.path.join(result_dir, "state"), exist_ok=True)
     os.makedirs(os.path.join(
         result_dir, "evaluation", "metrics"), exist_ok=True)
+    os.makedirs(os.path.join(
+        result_dir, "evaluation", "figures"), exist_ok=True)
 
-    def run_with_interrupt(*args):
-        if interrupt_handler and interrupt_handler.should_stop:
-            return None
-        return run_single_simulation(*args)
+    # Parallel processing for multiple sensor counts
+    with ProcessPoolExecutor(max_workers=mp.cpu_count()) as executor:
+        futures = [
+            executor.submit(
+                run_single_simulation,
+                radius, count, rounds, width,
+                relay_constraint, clustering, result_dir
+            ) for count in sensor_counts
+        ]
+        results = [f.result() for f in futures]
 
-    def sigint_handler(signum, frame):
-        """Handle Ctrl+C during simulation"""
-        print("\n\n[⚠️ Interrupt] Caught interrupt signal...")
-        try:
-            answer = input(
-                '[⚠️ Interrupt] Do you want to stop the current run? (y/N): ').strip().lower()
-            if answer == 'y':
-                print("\n[🛑 Stopping] Gracefully stopping current execution...")
-                # Signal all worker processes to stop
-                for _, future in futures:
-                    future.cancel()
-                executor.shutdown(wait=False)
-                return True
-            print("\n[▶️ Continuing] Resuming execution...")
-            return False
-        except (EOFError, KeyboardInterrupt):
-            print("\n[🛑 Stopping] Forced stop...")
-            return True
+    relays, energies, times = zip(*results)
 
-    # Store original handler
-    original_handler = signal.getsignal(signal.SIGINT)
-    signal.signal(signal.SIGINT, sigint_handler)
-
-    try:
-        with ProcessPoolExecutor(max_workers=mp.cpu_count()) as executor:
-            futures = []
-            for count in sensor_counts:
-                if interrupt_handler and interrupt_handler.should_stop:
-                    print("[🛑 Stopping] Interrupt received")
-                    break
-
-                future = executor.submit(
-                    run_single_simulation,
-                    radius, count, rounds, width,
-                    relay_constraint, clustering, result_dir
-                )
-                futures.append((count, future))
-
-            # Process results as they complete
-            for count, future in futures:
-                if interrupt_handler and interrupt_handler.check():
-                    print(
-                        "[🛑 Stopping] Interrupt received, cancelling remaining tasks...")
-                    for future_to_cancel in futures:
-                        future_to_cancel[1].cancel()
-                    break
-
-                try:
-                    result = future.result(timeout=600)  # Increased timeout to 10 minutes
-                    if result:
-                        relay, energy, time = result
-                        relays.append(relay)
-                        energies.append(energy)
-                        times.append(time)
-                        print(f"[✅ Complete] Processed {count} sensors")
-                except concurrent.futures.TimeoutError:
-                    print(
-                        f"[❌ Error] Simulation timed out for {count} sensors")
-                except Exception as e:
-                    print(
-                        f"[❌ Error] Failed processing {count} sensors: {str(e)}")
-
-    except KeyboardInterrupt:
-        print("\n[⚠️ Interrupt] Stopping simulations...")
-        if interrupt_handler:
-            interrupt_handler._signal_handler(signal.SIGINT, None)
-
-    finally:
-        # Save any completed results
-        if relays:
-            from utils.result_saver import save_partial_results
-            completed_counts = sensor_counts[:len(relays)]
-            save_partial_results(
-                result_dir, completed_counts, relays, energies, times)
-            print(
-                f"[💾 Saved] Results for {len(completed_counts)} completed simulations")
+    # Save all results under config directory
+    save_to_csv(os.path.join(result_dir, "network", "relays.csv"),
+                ["Sensor Count", "Relays"], zip(sensor_counts, relays))
+    save_to_csv(os.path.join(result_dir, "energy", "energies.csv"),
+                ["Sensor Count", "Energy"], zip(sensor_counts, energies))
+    save_to_csv(os.path.join(result_dir, "evaluation", "metrics", "times.csv"),
+                ["Sensor Count", "Time Taken"], zip(sensor_counts, times))
 
     return relays, energies, times
 

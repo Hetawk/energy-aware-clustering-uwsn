@@ -1,8 +1,4 @@
 import numpy as np
-
-GPU_AVAILABLE = False
-GPU_NAME = None
-
 try:
     import cupy as cp
     try:
@@ -23,6 +19,9 @@ except Exception as e:
     GPU_NAME = None
     print(f"\n[❌ GPU] Error initializing GPU: {str(e)}")
 
+import numba
+numba.config.THREADING_LAYER = 'tbb'
+
 
 class GPUAccelerator:
     @staticmethod
@@ -41,18 +40,11 @@ class GPUAccelerator:
     @staticmethod
     def calculate_energy_matrix(sensors, relays, bandwidth, e_radio, t_amplifier):
         """GPU-accelerated energy calculation"""
-        if not GPUAccelerator.is_available():
+        if not GPU_AVAILABLE:
             print("[💻 CPU] Falling back to CPU for energy calculations")
             return None
 
         try:
-            import cupy as cp  # Import cupy here to ensure it's only used if GPU is available
-            try:
-                import numba
-                numba.config.THREADING_LAYER = 'tbb'
-            except SystemError as e:
-                print(f"\n[❌ GPU] Numba initialization failed: {str(e)}. GPU acceleration disabled.")
-                return None
             print(
                 f"[🚀 GPU] Processing energy matrix ({len(sensors)}x{len(relays)})")
             start_time = cp.cuda.Event()

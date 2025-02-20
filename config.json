@@ -151,12 +151,12 @@
       "rounds": 150,
       "width": 150.0,
       "relay_constraint": 150
+    },
+    "performance": {
+      "use_gpu": true,
+      "batch_size": 1000,
+      "max_workers": null,
+      "optimize_memory": true
     }
-  },
-  "performance": {
-    "use_gpu": true,
-    "batch_size": 1000,
-    "max_workers": null,
-    "optimize_memory": true
   }
 }

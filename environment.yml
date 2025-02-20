@@ -5,7 +5,7 @@ dependencies:
   - python=3.8
   - numpy
   - matplotlib
-  - cupy-cuda11x # Or the appropriate CUDA version
+  - cupy-cuda11x # Ensure this matches your CUDA version
   - numba
   - llvm-openmp=14 # Pin LLVM version
   - pip

@@ -15,10 +15,6 @@ from optimization import Optimization
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-def simulate_round_wrapper(args):
-    """Wrapper function for parallel execution of simulate_round"""
-    self, round, nw_e_s, nw_e_r, state_s, network_file, srpfile, PH_list_sensors, s_counter = args
-    return self.simulate_round(round, nw_e_s, nw_e_r, state_s, network_file, srpfile, PH_list_sensors, s_counter)
 
 class Simulation:
     def __init__(self, sensorList, relayList, Fin_Conn_S_R, Fin_Conn_R_R, membership_values,
@@ -159,15 +155,11 @@ class Simulation:
                     for i, (_, sensor_idx) in enumerate(sorted_pairs):
                         state_s[sensor_idx][j] = 1 if i < active_count else 0
 
-                    # Reduce output frequency
-                    if round % 10 == 0:
-                        srpfile.write(
-                            f"Round {round}: Relay {j} - {active_count}/{len(sensors_in_cluster)} sensors active\n")
+                    srpfile.write(
+                        f"Round {round}: Relay {j} - {active_count}/{len(sensors_in_cluster)} sensors active\n")
         else:
             # Oil spill detection - activate all sensors in affected areas
-            # Reduce output frequency
-            if round % 10 == 0:
-                srpfile.write(f"Oil Detected in Round: {round}\n")
+            srpfile.write(f"Oil Detected in Round: {round}\n")
             for i in oil_affected_relays:
                 for j in range(len(state_s)):
                     if self.Fin_Conn_S_R[j][i] == 1:
@@ -180,65 +172,6 @@ class Simulation:
             writer = csv.writer(file)
             writer.writerow(headers)
             writer.writerows(data)
-
-    def simulate_round(self, round, nw_e_s, nw_e_r, state_s, network_file, srpfile, PH_list_sensors, s_counter):
-        """Simulate a single round of the network"""
-        consumed_round_energy = 0.0
-        # Reduce output frequency
-        if round % 10 == 0:
-            network_file.write("ROUND: " + str(round) + "\n")
-            srpfile.write("ROUND: " + str(round) + "\n")
-
-        # Vectorized energy consumption calculation
-        active_connections = (self.Fin_Conn_S_R == 1) & (state_s == 1)
-        energy_used_s = np.where(
-            active_connections, 0.01, 0)  # Base energy
-
-        # Apply membership-based energy reduction
-        if self.membership_values is not None:
-            cluster_idx = np.minimum(
-                np.arange(len(self.relayList)) % 3, 2)
-            membership_vals = np.array([self.membership_values[cluster_idx[j]][i]
-                                        if j < len(self.membership_values[0]) else 0
-                                        for i in range(len(self.sensorList)) for j in range(len(self.relayList))]).reshape(len(self.sensorList), len(self.relayList))
-            energy_used_s = np.where(
-                active_connections, energy_used_s * (0.8 + 0.2 * membership_vals), 0)
-
-        # Update sensor energies
-        nw_e_s = np.maximum(0, nw_e_s - energy_used_s)
-        consumed_round_energy += np.sum(energy_used_s)
-
-        # Relay energy consumption
-        energy_used_r = np.where(self.Fin_Conn_R_R == 1, 0.004, 0)
-        nw_e_r = np.maximum(0, nw_e_r - energy_used_r)
-        consumed_round_energy += np.sum(energy_used_r)
-
-        # Update dead nodes
-        dead_s = np.sum(nw_e_s <= 0)
-        dead_r = np.sum(nw_e_r <= 0)
-
-        dead_s_pc = (dead_s / len(self.sensorList)) * 100
-        dead_r_pc = (dead_r / len(self.relayList)) * 100
-        dead_nw_pc = (dead_s_pc + dead_r_pc) / 2
-        # Reduce output frequency
-        if round % 10 == 0:
-            network_file.write("dead relays: " + str(dead_r) + "\n")
-            network_file.write("Dead Network pc: " +
-                               str(dead_nw_pc) + " % \n")
-            network_file.write("Dead Sensor pc: " +
-                               str(dead_s_pc) + " % \n")
-            network_file.write("Dead relays pc: " +
-                               str(dead_r_pc) + " % \n")
-        if round == 5:
-            self.oil_simulator(PH_list_sensors)
-        if round == 5 + len(self.relayList) - 1:
-            self.reset_oil(PH_list_sensors)
-        if dead_s_pc > 90 or dead_r_pc > 90:
-            return nw_e_s, nw_e_r, True, consumed_round_energy  # Indicate early termination
-
-        self.srp_toggler(state_s, s_counter,
-                         PH_list_sensors, round, srpfile)
-        return nw_e_s, nw_e_r, False, consumed_round_energy
 
     def simu_network(self, nw_e_s, nw_e_r, state_s):
         """Run network simulation with proper directory handling"""
@@ -265,24 +198,61 @@ class Simulation:
             PH_list_sensors = self.init_sensor_ph_value()
             s_counter = self.init_s_counter(state_s)
 
-            # Prepare arguments for parallel execution
-            round_args = [(self, round, np.copy(nw_e_s), np.copy(nw_e_r), np.copy(state_s), network_file, srpfile, PH_list_sensors, s_counter)
-                          for round in range(self.rounds)]
+            # Replace while-loop with for-loop
+            for round in range(self.rounds):
+                consumed_round_energy = 0.0
+                network_file.write("ROUND: " + str(round) + "\n")
+                srpfile.write("ROUND: " + str(round) + "\n")
 
-            # Use ProcessPoolExecutor to parallelize the simulation loop
-            with ProcessPoolExecutor(max_workers=mp.cpu_count()) as executor:
-                results = executor.map(simulate_round_wrapper, round_args)
+                # Vectorized energy consumption calculation
+                active_connections = (self.Fin_Conn_S_R == 1) & (state_s == 1)
+                energy_used_s = np.where(
+                    active_connections, 0.01, 0)  # Base energy
 
-                # Process results from each round
-                for round, (new_nw_e_s, new_nw_e_r, early_terminate, consumed_round_energy) in zip(range(self.rounds), results):
-                    nw_e_s = new_nw_e_s
-                    nw_e_r = new_nw_e_r
-                    total_energy += consumed_round_energy
+                # Apply membership-based energy reduction
+                if self.membership_values is not None:
+                    cluster_idx = np.minimum(
+                        np.arange(len(self.relayList)) % 3, 2)
+                    membership_vals = np.array([self.membership_values[cluster_idx[j]][i]
+                                                if j < len(self.membership_values[0]) else 0
+                                                for i in range(len(self.sensorList)) for j in range(len(self.relayList))]).reshape(len(self.sensorList), len(self.relayList))
+                    energy_used_s = np.where(
+                        active_connections, energy_used_s * (0.8 + 0.2 * membership_vals), 0)
 
-                    if early_terminate:
-                        print(f"Early termination at round {round}")
-                        break
+                # Update sensor energies
+                nw_e_s = np.maximum(0, nw_e_s - energy_used_s)
+                consumed_round_energy += np.sum(energy_used_s)
 
+                # Relay energy consumption
+                energy_used_r = np.where(self.Fin_Conn_R_R == 1, 0.004, 0)
+                nw_e_r = np.maximum(0, nw_e_r - energy_used_r)
+                consumed_round_energy += np.sum(energy_used_r)
+
+                # Update dead nodes
+                dead_s = np.sum(nw_e_s <= 0)
+                dead_r = np.sum(nw_e_r <= 0)
+
+                # ... rest of the simulation loop code ...
+
+                dead_s_pc = (dead_s / len(self.sensorList)) * 100
+                dead_r_pc = (dead_r / len(self.relayList)) * 100
+                dead_nw_pc = (dead_s_pc + dead_r_pc) / 2
+                network_file.write("dead relays: " + str(dead_r) + "\n")
+                network_file.write("Dead Network pc: " +
+                                   str(dead_nw_pc) + " % \n")
+                network_file.write("Dead Sensor pc: " +
+                                   str(dead_s_pc) + " % \n")
+                network_file.write("Dead relays pc: " +
+                                   str(dead_r_pc) + " % \n")
+                if round == 5:
+                    self.oil_simulator(PH_list_sensors)
+                if round == 5 + len(self.relayList) - 1:
+                    self.reset_oil(PH_list_sensors)
+                if dead_s_pc > 90 or dead_r_pc > 90:
+                    break
+                self.srp_toggler(state_s, s_counter,
+                                 PH_list_sensors, round, srpfile)
+                total_energy += consumed_round_energy
             network_file.write("total rounds: " + str(round+1) + "\n")
             network_file.write("total Energy used: " +
                                str(total_energy) + "\n")
@@ -410,7 +380,7 @@ def run_simulations(radius, sensor_counts, rounds, width, relay_constraint, clus
                     break
 
                 try:
-                    result = future.result(timeout=600)  # Increased timeout to 10 minutes
+                    result = future.result(timeout=300)  # 5-minute timeout
                     if result:
                         relay, energy, time = result
                         relays.append(relay)

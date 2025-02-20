@@ -3,9 +3,6 @@
 # Config: use "default", "test0", "test1", etc.
 CONFIG_SET="test0"
 
-# Activate the virtual environment
-source .vee/bin/activate
-
 # Clean up any existing results for this config
 rm -rf "results/$CONFIG_SET"
 
@@ -17,6 +14,3 @@ echo "Checking results in results/$CONFIG_SET/..."
 cat "results/$CONFIG_SET/network/srp_output.txt"
 cat "results/$CONFIG_SET/evaluation/metrics/with_clustering_energy_consumption.csv"
 cat "results/$CONFIG_SET/evaluation/metrics/without_clustering_energy_consumption.csv"
-
-# # Deactivate the virtual environment (optional)
-# deactivate

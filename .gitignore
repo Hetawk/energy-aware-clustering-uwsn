@@ -24,7 +24,6 @@ first results
 
 # Virtual Environment
 venv/
-.vee/
 env/
 ENV/
 .env
